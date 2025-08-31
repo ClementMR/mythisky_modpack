@@ -6,7 +6,7 @@ Official server : `sw.minetest.land:30001`
 
 ## Screenshot
 
-<img width="1210" height="780" alt="screenshot" src="https://github.com/user-attachments/assets/8a692697-15ec-4a30-a7c7-192527326753" />
+<img width="1210" height="780" alt="screenshot" src="screenshot.png" />
 
 ## Mods
 
