@@ -1,0 +1,23 @@
+# textdomain: mythisky
+
+Use @1 or @2 to leave a minigame.=Utilisez @1 ou @2 pour quitter un mini-jeu.
+You can use @1 to teleport to the lobby.=Vous pouvez utiliser @1 pour vous téléporter au lobby.
+Use @1 for a list of commands.=Utilisez @1 pour voir la liste des commandes.
+Use @1 to change your skin.=Utilisez @1 pour changer votre apparence.
+Use @1 to send a discord suggestion.=Utilisez @1 pour envoyer une suggestion sur Discord
+Welcome to the server, @1!=Bienvenue sur le serveur, @1!
+Punch to respawn here@n@nRight-click to teleport to lobby=Tapez pour réapparaître ici@n@nFaites un clic droit pour vous téléporter au lobby
+Respawn point already defined here!=Point de réapparition déjà défini ici!
+Respawn point defined!=Point de réapparition défini!
+You are not allowed to leave the map while it's loading!=Vous n'êtes pas autorisé à quitter la carte pendant son chargement!
+Teleportation already in progress!=Téléportation déjà en cours!
+Teleportation in progress...=Téléportation en cours...
+Edit your skin=Modifier votre apparence
+Use @1 to change your settings.=Utilisez @1 pour changer vos paramètres.
+Teleported to lobby=Vous avez été téléporté au lobby
+Change your settings=Modifier vos paramètres
+Springboard=Tremplin
+[Tips] @1=[Astuce] @1
+Show the Discord server link=Affiche le lien du serveur Discord
+Discord link:  @1=Lien Discord: @1
+Teleport the player to the lobby=Téléporte le joueur au lobby

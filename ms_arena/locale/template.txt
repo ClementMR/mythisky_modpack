@@ -1,0 +1,4 @@
+# textdomain: ms_arena
+
+COMBAT ZONE=
+(Sneak + Right-Click to switch to the next item)=

@@ -1,0 +1,21 @@
+[Default settings]
+
+#   Allows players to respawn in a game
+minigame_respawn_allowed (Respawn Allowed) bool false
+
+#   Minimum number of player required to start a game
+minigame_min_players (Minimum Players) int 2
+
+#   Allows a minigame to end when there is not enough players
+minigame_end_match (End Match) bool true
+
+#   Loading time before a game starts
+minigame_load_time (Loading Time) int 10
+
+minigame_map_regen (Regenerate Map) bool true
+
+minigame_map_timer (Game Timer) int 600
+
+[Other settings]
+
+minigame_hide_nametags (Hide nametags) bool true

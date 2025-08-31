@@ -1,0 +1,7 @@
+# textdomain: skywars
+
+Game starts in @1s...=
+Game begins – may the best player win!=
+@1s left=
+The winner is @1 - well played!=
+@1 has been eliminated!=

@@ -1,0 +1,7 @@
+# textdomain: minigame_access
+
+Online (@1/@2) :=
+A map editor must set a map first!=
+You are not able to spectate this map!=
+Play=
+Watch=

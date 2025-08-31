@@ -1,0 +1,10 @@
+# textdomain: server_suggestion
+
+<message>=<message>
+Send a suggestion to the administrative team=Envoyer une suggestion à l'équipe administrative
+Usage: /suggestion <message>=Utilisation: /suggestion <message>
+The suggestion system is currently unavailable. Please contact the administrative team.=Le système de suggestions est actuellement indisponible. Veuillez contacter l'équipe administrative.
+Message too short (Your message must contain at least @1 characters)=Message trop court (Votre message doit contenir au moins @1 caractères)
+Message too long (Maximum : @1 characters)=
+Please wait @1 seconds before using @2 again.=Veuillez attendre @1 secondes avant d'utiliser à nouveau @2.
+Your suggestion has been sent to the administrative team.=Votre suggestion a été transmise à l'équipe administrative.

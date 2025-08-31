@@ -1,0 +1,23 @@
+# textdomain: mythisky
+
+Use @1 or @2 to leave a minigame.=
+You can use @1 to teleport to the lobby.=
+Use @1 for a list of commands.=
+Use @1 to change your skin.=
+Use @1 to send a discord suggestion.=
+Welcome to the server, @1!=
+Punch to respawn here@n@nRight-click to teleport to lobby=
+Respawn point already defined here!=
+Respawn point defined!=
+You are not allowed to leave the map while it's loading!=
+Teleportation already in progress!=
+Teleportation in progress...=
+Edit your skin=
+Use @1 to change your settings.=
+Teleported to lobby=
+Change your settings=
+Springboard=
+[Tips] @1=
+Show the Discord server link=
+Discord link:  @1=
+Teleport the player to the lobby=

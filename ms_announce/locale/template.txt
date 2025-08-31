@@ -1,0 +1,4 @@
+# textdomain: ms_announce
+
+Show the announcements when you join the game=
+Show the announcements page=

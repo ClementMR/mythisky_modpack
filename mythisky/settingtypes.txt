@@ -1,0 +1,5 @@
+# Define a death Layer
+# A player under this layer dies instantly
+death_layer (Death Layer) int -100
+
+tips_timer (TIPS Timer) int 900

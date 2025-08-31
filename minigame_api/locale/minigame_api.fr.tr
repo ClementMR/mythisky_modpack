@@ -1,0 +1,33 @@
+# textdomain: minigame_api
+
+You are already in game!=Vous êtes déjà en jeu!
+The map is already full or running!=La carte est déjà pleine!
+Unable to find the game : @1=Impossible de trouver le jeu : @1
+Unable to find the map : @1=Impossible de trouver la carte : @1
+@1 joined the game.=@1 a rejoint le jeu.
+You are not in a game!=Vous n'êtes pas dans un jeu!
+You are not allowed to leave the map while it's loading!=Vous n'êtes pas autorisé à quitter la carte pendant son chargement!
+@1 left the game.=@1 a quitté le jeu.
+[Spectator] @1 is now spectating the map.=[Spectateur] @1 est désormais en mode spectateur sur cette carte.
+You are not allowed to cross the barrier!=Vous n'êtes pas autorisé à franchir la barrière!
+Reloading maps - Please reconnect ...=Rechargement des cartes - Veuillez vous reconnecter ...
+Join a minigame=Permet de rejoindre un mini-jeu
+<game_name> <map_name>=<nom_jeu> <nom_carte>
+Add a player to a minigame=Ajoute un joueur dans un mini-jeu
+<player_name> <game_name> <map_name>=<joueur> <nom_jeu> <nom_carte>
+This player isn't online.=Ce joueur est hors ligne.
+Leave the current map=Permet de quitter la carte actuelle
+List all games=Liste tous les jeux
+List of games:=Liste des jeux:
+List the maps of the specified game=Liste les cartes du jeu spécifié
+List of maps for @1 :=Liste des cartes pour @1:
+<game_name>=<nom_jeu>
+Get the informations of the map specified=Obtient les informations de la carte spécifiée
+Informations of the map : @1=Informations de la carte : @1
+Spectators : =Spectateurs : 
+Reloading maps ...=Rechargement des cartes ...
+Watch a map=Permet de regarder une carte
+You are currently watching @1=Vous êtes en train de regarder @1
+Reloading all maps ...=Rechargement de toutes les cartes ...
+Reload maps=Permet de recharger les cartes
+This map is disabled!=Cette carte est désactivée!

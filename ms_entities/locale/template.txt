@@ -1,0 +1,4 @@
+# textdomain: ms_entities
+
+Right-click to spawn a mob=
+Good game!=

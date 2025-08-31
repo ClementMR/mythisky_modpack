@@ -1,0 +1,3 @@
+# textdomain: custom_crosshair
+
+Use custom crosshair=

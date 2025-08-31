@@ -1,0 +1,33 @@
+# textdomain: minigame_api
+
+You are already in game!=
+The map is already full or running!=
+Unable to find the game : @1=
+Unable to find the map : @1=
+@1 joined the game.=
+You are not in a game!=
+You are not allowed to leave the map while it's loading!=
+@1 left the game.=
+[Spectator] @1 is now spectating the map.=
+You are not allowed to cross the barrier!=
+Reloading maps - Please reconnect ...=
+Join a minigame=
+<game_name> <map_name>=
+Add a player to a minigame=
+<player_name> <game_name> <map_name>=
+This player isn't online.=
+Leave the current map=
+List all games=
+List of games:=
+List the maps of the specified game=
+List of maps for @1 :=Liste de cartes pour @1 :
+<game_name>=
+Get the informations of the map specified=
+Informations of the map : @1=
+Spectators : =
+Reloading maps ...=
+Watch a map=
+You are currently watching @1=
+Reloading all maps ...=
+Reload maps=
+This map is disabled!=

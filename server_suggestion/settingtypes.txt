@@ -1,0 +1,11 @@
+# Webhook URL
+server_suggestion_webhook_url (Webhook URL) string
+
+# Maximum character lenght per suggestion
+maximum_characters (Maximum Characters) int 500
+
+# Minimum character lenght per suggestion
+minimum_characters (Minimum Characters) int 20
+
+# Cooldown in seconds per suggestion
+cooldown_duration (Cooldown Duration) int 300

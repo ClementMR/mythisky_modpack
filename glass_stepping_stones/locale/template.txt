@@ -1,0 +1,5 @@
+# textdomain: glass_stepping_stones
+
+Game starts in @1s...=
+Congratulations, You won!=
+@1 has been eliminated!=
