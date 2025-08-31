@@ -1,14 +1,5 @@
 minigame = {} -- Global table
 
--- Default values
-minigame.RESPAWN_ALLOWED    =  core.settings:get_bool("minigame_respawn_allowed") or false
-minigame.MIN_PLAYERS        = core.settings:get("minigame_min_players") or 2
-minigame.END_MATCH          = core.settings:get_bool("minigame_end_match") or true
-minigame.LOAD_TIME          = core.settings:get("minigame_load_time") or 10
-minigame.MAP_REGEN          = core.settings:get_bool("minigame_map_regen") or true
-minigame.MAP_TIMER          = core.settings:get("minigame_map_timer") or 600
-minigame.HIDE_NAMETAGS      = core.settings:get_bool("minigame_hide_nametags") or true
-
 -- Local variables
 local S = core.get_translator(core.get_current_modname())
 local minigame_path = core.get_worldpath() .. "/minigames"
@@ -26,6 +17,15 @@ local function bool_or(value, default)
 
     return default
 end
+
+-- Configuration
+minigame.RESPAWN_ALLOWED    = bool_or(core.settings:get_bool("minigame_respawn_allowed"), false)
+minigame.MIN_PLAYERS        = core.settings:get("minigame_min_players") or 2
+minigame.END_MATCH          = bool_or(core.settings:get_bool("minigame_end_match"), true)
+minigame.LOAD_TIME          = core.settings:get("minigame_load_time") or 10
+minigame.MAP_REGEN          = bool_or(core.settings:get_bool("minigame_map_regen"), true)
+minigame.MAP_TIMER          = core.settings:get("minigame_map_timer") or 600
+minigame.HIDE_NAMETAGS      = bool_or(core.settings:get_bool("minigame_hide_nametags"), true)
 
 function minigame.register(name, def)
     if minigame[name] then
