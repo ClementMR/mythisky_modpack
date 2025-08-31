@@ -682,7 +682,11 @@ function minigame.disable_map(map, value)
 end
 
 function minigame.map_enabled(map)
-    return map.activated or true
+    if map.activated ~= nil then
+        return map.activated
+    end
+
+    return true
 end
 
 local function load_maps()

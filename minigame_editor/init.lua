@@ -277,7 +277,7 @@ core.register_on_player_receive_fields(function(player, formname, fields)
             minigame_editor[player_name].old_map_name       = map_name
             minigame_editor[player_name].spawn_count        = #spawns
             minigame_editor[player_name].data["spawns"]     = spawns
-            minigame_editor[player_name].data["activated"]  = minigame.map_enabled(map)
+            minigame_editor[player_name].data["activated"]  = false
 
             minigame[game_name].maps[map_name].activated = false
 
@@ -326,11 +326,7 @@ core.register_on_player_receive_fields(function(player, formname, fields)
         end
 
         if fields.map_activated then
-            if fields.map_activated == "true" then
-                minigame_editor[player_name].data["activated"] = true
-            else
-                minigame_editor[player_name].data["activated"] = false
-            end
+            minigame_editor[player_name].data["activated"] = fields.map_activated == "true"
 
         elseif fields.save_map_name_btn and fields.map_name ~= ""
         or fields.key_enter_field == "map_name" and fields.map_name ~= "" then
