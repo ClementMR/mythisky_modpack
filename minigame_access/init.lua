@@ -30,11 +30,7 @@ local function show_map_form(player_name, pos, game_name, map_name)
     local max_players = map_info.max_players
     local current_players = minigame.get_players(map) or 0
     local image = get_map_image(map_name)
-
-    local players = {}
-    for _, player in ipairs(current_players) do
-        table.insert(players, player:get_player_name())
-    end
+    local players = minigame.get_player_names(map)
 
     if running then
         btn_pl_bgcolor = "#FF0000"
@@ -168,8 +164,7 @@ core.register_on_player_receive_fields(function(player, formname, fields)
         local meta = core.get_meta(pos)
         local game_name = meta:get_string("game_name")
         local map_name = meta:get_string("map_name")
-        local game, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
-        local running = minigame.get_map_information(game, map).running
+        local running = minigame.get_map_state(game_name, map_name) == "running"
 
         if fields.play_btn then
             minigame.join_game(player, game_name, map_name)

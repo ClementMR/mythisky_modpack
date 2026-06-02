@@ -1,15 +1,7 @@
 local discord_enabled = core.global_exists("discord")
 
 local function is_ingame(player)
-    for _, p in ipairs(minigame.get_all_players()) do
-        if player == p then return true end
-    end
-
-    for _, s in ipairs(minigame.get_all_spectators()) do
-        if player == s then return true end
-    end
-
-    return false
+    return minigame.is_player_in_game(player)
 end
 
 -- Handle chat messages
@@ -37,9 +29,9 @@ core.register_on_chat_message(function(name, message)
 
         return true
     else
-        for _, p in ipairs(core.get_connected_players()) do
-            if not is_ingame(p) then core.chat_send_player(p:get_player_name(), message_format) end
-        end
+        ms_utils.chat.send_to_connected(message_format, function(connected_player)
+            return not is_ingame(connected_player)
+        end)
 
         if discord_enabled then discord.send(message_format) end
 

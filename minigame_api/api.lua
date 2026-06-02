@@ -9,27 +9,79 @@ local minigame_prefix = core.colorize("#D9D529", "[Minigame]") .. " "
 
 local player_index = {}
 local active_games = {}
+local runtime_map_fields = {
+    players = true,
+    spectators = true,
+    loading = true,
+    running = true,
+    timer = true,
+    loading_timer = true,
+}
 
-local function bool_or(value, default)
-    if value ~= nil then
-        return value
+local bool_or = ms_utils.bool_or
+local number_or = ms_utils.number_or
+
+local function ensure_active_game(game_name)
+    active_games[game_name] = active_games[game_name] or {active_maps = {}}
+    return active_games[game_name]
+end
+
+local function cancel_map_timer(game_name, map_name)
+    local active_game = active_games[game_name]
+    if not active_game or not active_game.active_maps[map_name] then
+        return
     end
 
-    return default
+    active_game.active_maps[map_name]:cancel()
+    active_game.active_maps[map_name] = nil
+end
+
+local function set_map_timer(game_name, map_name, handle)
+    ensure_active_game(game_name).active_maps[map_name] = handle
+end
+
+local function get_persistent_map_data(map)
+    local data = {}
+
+    for key, value in pairs(map) do
+        if not runtime_map_fields[key] then
+            data[key] = value
+        end
+    end
+
+    return data
 end
 
 -- Configuration
 minigame.RESPAWN_ALLOWED    = bool_or(core.settings:get_bool("minigame_respawn_allowed"), false)
-minigame.MIN_PLAYERS        = core.settings:get("minigame_min_players") or 2
+minigame.MIN_PLAYERS        = number_or(core.settings:get("minigame_min_players"), 2)
 minigame.END_MATCH          = bool_or(core.settings:get_bool("minigame_end_match"), true)
-minigame.LOAD_TIME          = core.settings:get("minigame_load_time") or 10
+minigame.LOAD_TIME          = number_or(core.settings:get("minigame_load_time"), 10)
 minigame.MAP_REGEN          = bool_or(core.settings:get_bool("minigame_map_regen"), true)
-minigame.MAP_TIMER          = core.settings:get("minigame_map_timer") or 600
+minigame.MAP_TIMER          = number_or(core.settings:get("minigame_map_timer"), 600)
 minigame.HIDE_NAMETAGS      = bool_or(core.settings:get_bool("minigame_hide_nametags"), true)
 
 function minigame.register(name, def)
+    if type(name) ~= "string" or name == "" then
+        error("The minigame name must be a non-empty string.")
+    end
+
+    def = def or {}
+
     if minigame[name] then
         error("The minigame \"" .. name .. "\" is already registered.")
+    end
+
+    local player_settings
+    if minigame.normalize_player_settings then
+        player_settings = minigame.normalize_player_settings(def)
+    else
+        player_settings = {
+            inventory_mode = "clear",
+            save_lobby_inventory = false,
+            include_armor = false,
+            inventory_lists = {"main", "craft"},
+        }
     end
 
     minigame[name] = {
@@ -37,12 +89,14 @@ function minigame.register(name, def)
         maps = {},
         settings = {
             respawn_allowed     = bool_or(def.respawn_allowed, minigame.RESPAWN_ALLOWED),
-            max_players         = def.max_players or nil,
-            min_players         = def.min_players or minigame.MIN_PLAYERS,
+            max_players         = number_or(def.max_players, nil),
+            min_players         = number_or(def.min_players, minigame.MIN_PLAYERS),
             end_match           = bool_or(def.end_match, minigame.END_MATCH),
-            load_time           = def.load_time or minigame.LOAD_TIME,
+            timed               = bool_or(def.timed, true),
+            load_time           = number_or(def.load_time, minigame.LOAD_TIME),
             map_regen           = bool_or(def.map_regen, minigame.MAP_REGEN),
-            map_timer           = def.map_timer or minigame.MAP_TIMER,
+            map_timer           = number_or(def.map_timer, minigame.MAP_TIMER),
+            player              = player_settings,
         },
         custom_properties = def.custom_properties or {},
     }
@@ -60,10 +114,23 @@ function minigame.load_map(game_name, map_name, timer)
     core.log("action", ("[Minigame] Loading the map %s ..."):format(map_name))
 
     local game, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
+    if not game or not map then
+        core.log("error", ("[Minigame] Unable to load unknown map %s/%s"):format(game_name, map_name))
+        return false
+    end
+
     local map_info = minigame.get_map_information(game, map)
     local min_players = map_info.min_players
+    timer = number_or(timer, map_info.load_time)
 
-    active_games[game_name] = active_games[game_name] or {active_maps = {}}
+    if map.running then
+        return false
+    end
+
+    cancel_map_timer(game_name, map_name)
+
+    map.players = map.players or {}
+    map.spectators = map.spectators or {}
 
     core.emerge_area(map.pos1, map.pos2)
 
@@ -78,8 +145,7 @@ function minigame.load_map(game_name, map_name, timer)
 
             map.loading = false
 
-            active_games[game_name].active_maps[map_name]:cancel()
-            active_games[game_name].active_maps[map_name] = nil
+            cancel_map_timer(game_name, map_name)
 
             return
 
@@ -95,20 +161,29 @@ function minigame.load_map(game_name, map_name, timer)
 
         map.loading_timer = map.loading_timer - 1
 
-        active_games[game_name].active_maps[map_name] = core.after(1, load)
+        set_map_timer(game_name, map_name, core.after(1, load))
     end
 
     load()
+    return true
 end
 
 function minigame.start_game(game_name, map_name)
     core.log("action", ("[Minigame] Launching %s on the map %s ..."):format(game_name, map_name))
 
     local game, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
+    if not game or not map then
+        core.log("error", ("[Minigame] Unable to start unknown map %s/%s"):format(game_name, map_name))
+        return false
+    end
+
     local map_info = minigame.get_map_information(game, map)
     local default_timer = map_info.map_timer
     local map_regen = map_info.map_regen
     local end_match = map_info.end_match
+    local timed = map_info.timed
+
+    cancel_map_timer(game_name, map_name)
 
     if map_regen then
         minigame.clear_dropped_items(map)
@@ -117,13 +192,14 @@ function minigame.start_game(game_name, map_name)
 
     if game.def.on_start then game.def.on_start(map_name) end
 
-    active_games[game_name] = active_games[game_name] or {active_maps = {}}
-
+    map.loading = false
     map.running = true
+    map.players = map.players or {}
+    map.spectators = map.spectators or {}
     map.timer = default_timer
 
     local function tick()
-        if map.timer <= 0 or #map.players == 0 then
+        if (timed and map.timer <= 0) or #map.players == 0 then
 
             minigame.end_game(game_name, map_name, "Time's up!", {})
 
@@ -144,18 +220,29 @@ function minigame.start_game(game_name, map_name)
 
         if game.def.on_tick then game.def.on_tick(map_name, map.timer) end
 
-        map.timer = map.timer - 1
+        if timed then
+            map.timer = map.timer - 1
+        end
 
-        active_games[game_name].active_maps[map_name] = core.after(1, tick)
+        set_map_timer(game_name, map_name, core.after(1, tick))
     end
 
     tick()
+    return true
 end
 
 function minigame.end_game(game_name, map_name, reason, winners)
+    reason = reason or "unknown"
+    winners = winners or {}
+
     core.log("action", ("[Minigame] Ending %s on the map %s ... Reason : %s"):format(game_name, map_name, reason))
 
     local game, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
+    if not game or not map then
+        core.log("error", ("[Minigame] Unable to end unknown map %s/%s"):format(game_name, map_name))
+        return false
+    end
+
     local map_info = minigame.get_map_information(game, map)
     local map_regen = map_info.map_regen
     local timer = map_info.map_timer
@@ -173,19 +260,23 @@ function minigame.end_game(game_name, map_name, reason, winners)
 
     map.players = {}
     map.spectators = {}
+    map.loading = false
     map.running = false
     map.timer = timer
     map.loading_timer = loading_timer
 
-    if active_games[game_name] and active_games[game_name].active_maps[map_name] then
-        active_games[game_name].active_maps[map_name]:cancel()
-        active_games[game_name].active_maps[map_name] = nil
-    end
+    cancel_map_timer(game_name, map_name)
+    return true
 end
 
 function minigame.attempt_join(player, game, map)
     local entry = minigame.get_player_entry(player)
     local player_name = player:get_player_name()
+
+    if not game or not map then
+        core.chat_send_player(player_name, core.colorize("#F4320B", S("Unable to find this map.")))
+        return false
+    end
 
     if entry and entry.game and entry.map then
         core.chat_send_player(player_name, core.colorize("#F4320B", S("You are already in game!")))
@@ -235,11 +326,9 @@ function minigame.join_game(player, game_name, map_name)
     local min_players = map_info.min_players
     local loading = map_info.loading
     local load_time = map_info.load_time
-    local max_hp = core.PLAYER_MAX_HP_DEFAULT
+    ms_utils.player.reset_health(player)
 
-    if player:get_hp() ~= max_hp then player:set_hp(max_hp) end
-
-    minigame.clear_inventory(player)
+    minigame.apply_player_join_state(player, game_name)
 
     if minigame.HIDE_NAMETAGS then
         player:set_nametag_attributes({text = " ", color = {a=0, r=0, g=0, b=0}})
@@ -277,29 +366,13 @@ function minigame.leave_game(player)
 
     minigame.chat_send_all(map, core.colorize("grey", "<<< ").. S("@1 left the game.", player_name))
 
-    if minigame.is_spectating(player) then
-        for i, s in ipairs(minigame.get_spectators(map)) do
-            if s == player then
-                minigame.reset_player(player)
-
-                table.remove(map.spectators, i)
-
-                return
-            end
-        end
-    else
-        for i, p in ipairs(minigame.get_players(map)) do
-            if p == player then
+    minigame.remove_player_from_map(player, map, {
+        before_reset = function(is_spectator)
+            if not is_spectator then
                 if game.def.on_leave then game.def.on_leave(player_name, entry.map) end
-
-                minigame.reset_player(player)
-
-                table.remove(map.players, i)
-
-                return
             end
-        end
-    end
+        end,
+    })
 end
 
 
@@ -307,10 +380,43 @@ end
 --- RELATED FUNCTIONS
 --
 
+function minigame.remove_player_from_map(player, map, options)
+    if not player or not map then
+        return false
+    end
+
+    options = options or {}
+
+    local is_spectator = minigame.is_spectating(player)
+    local list_name = is_spectator and "spectators" or "players"
+    local list = map[list_name]
+
+    if not list then
+        return false, is_spectator
+    end
+
+    for index, listed_player in ipairs(list) do
+        if listed_player == player then
+            if options.before_reset then
+                options.before_reset(is_spectator)
+            end
+
+            if options.reset ~= false then
+                minigame.reset_player(player)
+            end
+
+            table.remove(list, index)
+            return true, is_spectator
+        end
+    end
+
+    return false, is_spectator
+end
+
 
 function minigame.get_players(map)
     local players = {}
-    if not map.players then return players end
+    if not map or not map.players then return players end
 
     for _, player in ipairs(map.players) do
         table.insert(players, player)
@@ -321,7 +427,7 @@ end
 
 function minigame.get_spectators(map)
     local spectators = {}
-    if not map.spectators then return spectators end
+    if not map or not map.spectators then return spectators end
 
     for _, spectator in ipairs(map.spectators) do
         table.insert(spectators, spectator)
@@ -361,40 +467,31 @@ function minigame.get_all_spectators()
 end
 
 function minigame.chat_send_players(map, message)
-    local list = {}
-    for _, player in ipairs(minigame.get_players(map)) do
-        table.insert(list, player:get_player_name())
-    end
-
-    for _, player_name in pairs(list) do
-        core.chat_send_player(player_name, message)
-    end
+    ms_utils.chat.send_to_players(minigame.get_players(map), message)
 end
 
 function minigame.chat_send_spectators(map, message)
-    local list = {}
-    for _, spectator in ipairs(minigame.get_spectators(map)) do
-        table.insert(list, spectator:get_player_name())
-    end
-
-    for _, player_name in pairs(list) do
-        core.chat_send_player(player_name, message)
-    end
+    ms_utils.chat.send_to_players(minigame.get_spectators(map), message)
 end
 
 function minigame.chat_send_all(map, message)
-    local list = {}
+    ms_utils.chat.send_to_names(minigame.get_player_names(map, true), message)
+end
+
+function minigame.get_player_names(map, include_spectators)
+    local names = {}
+
     for _, player in ipairs(minigame.get_players(map)) do
-        table.insert(list, player:get_player_name())
+        table.insert(names, player:get_player_name())
     end
 
-    for _, spectator in ipairs(minigame.get_spectators(map)) do
-        table.insert(list, spectator:get_player_name())
+    if include_spectators then
+        for _, spectator in ipairs(minigame.get_spectators(map)) do
+            table.insert(names, spectator:get_player_name())
+        end
     end
 
-    for _, player_name in pairs(list) do
-        core.chat_send_player(player_name, message)
-    end
+    return names
 end
 
 function minigame.get_all_games()
@@ -408,19 +505,36 @@ function minigame.get_all_games()
     return games
 end
 
+function minigame.get_game(game_name)
+    local game = minigame[game_name]
+    if type(game) == "table" and game.maps then
+        return game
+    end
+
+    return nil
+end
+
 function minigame.get_maps(game_name)
     local maps = {}
-    if not minigame[game_name] then return maps end
+    local game = minigame.get_game(game_name)
+    if not game then return maps end
 
-    for map_name, _ in pairs(minigame[game_name].maps) do
+    for map_name, _ in pairs(game.maps) do
         table.insert(maps, map_name)
     end
 
     return maps
 end
 
+function minigame.get_map(game_name, map_name)
+    local game = minigame.get_game(game_name)
+    if not game then return nil end
+
+    return game.maps[map_name]
+end
+
 function minigame.get_gamedef_and_mapdef(game_name, map_name)
-    local gamedef = minigame[game_name]
+    local gamedef = minigame.get_game(game_name)
     if not gamedef then return nil end
 
     local mapdef = gamedef.maps[map_name]
@@ -431,6 +545,8 @@ end
 
 function minigame.get_spawns(map)
     local spawns = {}
+    if not map or not map.spawns then return spawns end
+
     for _, spawn in ipairs(map.spawns) do
         table.insert(spawns, spawn)
     end
@@ -459,6 +575,8 @@ function minigame.get_spectator_in_map(map, player)
 end
 
 function minigame.get_player_entry(player)
+    if not player then return nil end
+
     local entry = player_index[player:get_player_name()]
     if not entry then return nil end
 
@@ -468,24 +586,56 @@ function minigame.get_player_entry(player)
     }
 end
 
+function minigame.is_player_in_game(player)
+    return minigame.get_player_entry(player) ~= nil
+end
+
 function minigame.get_map_information(game, map)
+    if not game or not map then return nil end
+    local player_settings = game.settings.player
+
+    if not player_settings then
+        if minigame.normalize_player_settings then
+            player_settings = minigame.normalize_player_settings({})
+        else
+            player_settings = {
+                inventory_mode = "clear",
+                save_lobby_inventory = false,
+                include_armor = false,
+            }
+        end
+    end
+
     return {
         respawn_allowed = game.settings.respawn_allowed,
         max_players     = game.settings.max_players or map.spawns and #map.spawns or 0,
         min_players     = game.settings.min_players,
         end_match       = game.settings.end_match,
+        timed           = game.settings.timed,
         load_time       = game.settings.load_time,
         map_regen       = game.settings.map_regen,
         map_timer       = game.settings.map_timer,
+        inventory_mode  = player_settings.inventory_mode,
+        save_lobby_inventory = player_settings.save_lobby_inventory,
+        include_armor   = player_settings.include_armor,
         loading         = map.loading or false,
         running         = map.running or false,
     }
 end
 
+function minigame.get_map_state(game_name, map_name)
+    local game, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
+    if not game then return "unknown_game" end
+    if not map then return "unknown_map" end
+    if not minigame.map_enabled(map) then return "disabled" end
+    if map.running then return "running" end
+    if map.loading then return "loading" end
+
+    return "waiting"
+end
+
 function minigame.clear_inventory(player)
-    local inv = player:get_inventory()
-    inv:set_list("main", {})
-    inv:set_list("craft", {})
+    ms_utils.player.clear_inventory(player)
 end
 
 function minigame.drop_inventory(player)
@@ -536,6 +686,16 @@ function minigame.add_spectator(player, game_name, map_name)
     local player_name = player:get_player_name()
     local _, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
 
+    if not map then
+        core.chat_send_player(player_name, core.colorize("#F4320B", S("Unable to find this map.")))
+        return false
+    end
+
+    if not map.spawns or not map.spawns[1] then
+        core.chat_send_player(player_name, core.colorize("#F4320B", S("This map has no spawn.")))
+        return false
+    end
+
     local pos = vector.offset(map.spawns[1], 0, 2, 0)
     player:set_pos(pos)
 
@@ -574,6 +734,7 @@ function minigame.add_spectator(player, game_name, map_name)
     table.concat(spectators, ", ")))
 
     core.log("action", "[Minigame] Player " .. player_name .." is spectating")
+    return true
 end
 
 function minigame.is_spectating(player)
@@ -603,13 +764,18 @@ end
 
 function minigame.reset_player(player)
     local player_name = player:get_player_name()
-    local spawnpoint = core.settings:get_pos("static_spawnpoint")
-    local max_hp = core.PLAYER_MAX_HP_DEFAULT
+    local entry = minigame.get_player_entry(player)
+    local was_spectating = minigame.is_spectating(player)
 
-    if not core.is_creative_enabled(player_name) then minigame.clear_inventory(player) end
-    if player:get_hp() ~= max_hp then player:set_hp(max_hp) end
+    if not core.is_creative_enabled(player_name) then
+        minigame.apply_player_exit_state(player, entry and entry.game, {
+            save_game_inventory = not was_spectating,
+        })
+    end
+
+    ms_utils.player.reset_health(player)
     if player_index[player:get_player_name()] then player_index[player:get_player_name()] = nil end
-    if spawnpoint then player:set_pos(spawnpoint) else player:respawn() end
+    ms_utils.player.teleport_to_spawn(player)
 
     if minigame.HIDE_NAMETAGS and player:get_nametag_attributes().text == " " then
         player:set_nametag_attributes({text = player_name, color = {a=255, r=255, g=255, b=255}})
@@ -726,7 +892,10 @@ function minigame.reload_maps()
     for _, game_name in ipairs(minigame.get_all_games()) do
         for _, map_name in ipairs(minigame.get_maps(game_name)) do
             local _, map = minigame.get_gamedef_and_mapdef(game_name, map_name)
-            if map.players and #map.players ~= 0 or map.spectators and #map.spectators ~= 0 then
+            local has_players = map.players and #map.players ~= 0
+            local has_spectators = map.spectators and #map.spectators ~= 0
+
+            if has_players or has_spectators then
                 minigame.end_game(game_name, map_name)
             end
         end
@@ -739,7 +908,11 @@ function minigame.save_maps()
     local maps_data = {}
     for game_name, game_data in pairs(minigame) do
         if type(game_data) == "table" and game_data.maps then
-            maps_data[game_name] = game_data.maps
+            maps_data[game_name] = {}
+
+            for map_name, map_data in pairs(game_data.maps) do
+                maps_data[game_name][map_name] = get_persistent_map_data(map_data)
+            end
         end
     end
 

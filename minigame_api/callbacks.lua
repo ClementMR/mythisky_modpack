@@ -4,29 +4,13 @@ core.register_on_leaveplayer(function(player)
 
     if entry and entry.game and entry.map then
         local game, map = minigame.get_gamedef_and_mapdef(entry.game, entry.map)
-        if minigame.is_spectating(player) then
-            for i, s in ipairs(minigame.get_spectators(map)) do
-                if s == player then
-                    minigame.reset_player(player)
-
-                    table.remove(map.spectators, i)
-
-                    break
-                end
-            end
-        else
-            for i, p in ipairs(minigame.get_players(map)) do
-                if p == player then
+        minigame.remove_player_from_map(player, map, {
+            before_reset = function(is_spectator)
+                if not is_spectator then
                     if game.def.on_leave then game.def.on_leave(player_name, entry.map) end
-
-                    minigame.reset_player(player)
-
-                    table.remove(map.players, i)
-
-                    break
                 end
-            end
-        end
+            end,
+        })
 
         core.log("action", "[Minigame] " .. player_name .. " left the map \"" .. entry.map .. "\"")
     end
@@ -44,23 +28,19 @@ core.register_on_dieplayer(function(player)
         local end_match = map_info.end_match
 
         if not respawn_allowed then
-            for i, p in ipairs(minigame.get_players(map)) do
-                if p == player then
+            local removed = minigame.remove_player_from_map(player, map, {
+                before_reset = function()
                     if game.def.on_die then
                         game.def.on_die(player_name, entry.map)
                     end
+                end,
+            })
 
-                    minigame.reset_player(player)
-
-                    table.remove(map.players, i)
-
-                    if map_running and (#map.players > 1 or not end_match) then
-                        minigame.add_spectator(player, entry.game, entry.map)
-                    end
-
-                    return
-                end
+            if removed and map_running and (#map.players > 1 or not end_match) then
+                minigame.add_spectator(player, entry.game, entry.map)
             end
+
+            return
         end
     end
 end)
