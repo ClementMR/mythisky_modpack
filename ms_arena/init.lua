@@ -19,19 +19,7 @@ core.register_privilege("arena_bypass", {
 })
 
 local function add_items(player, stack)
-    local inv = player:get_inventory()
-
-    if stack then
-        inv:set_list("main", {})
-        inv:set_list("craft", {})
-
-        for _, v in ipairs(stack) do
-            inv:set_stack("main", v.slot, v.item)
-        end
-    else
-        inv:set_list("main", {})
-        inv:set_list("craft", {})
-    end
+    ms_utils.player.set_inventory_items(player, stack or {})
 end
 
 local function set_arena_speed(player, speed)

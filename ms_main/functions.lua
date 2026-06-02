@@ -1,34 +1,19 @@
-local spawnpoint = core.settings:get_pos("static_spawnpoint")
-
 function skylith.try_tp_to_spawn(player)
-    if spawnpoint then
-        player:set_pos(spawnpoint)
-        return
-    end
-
-    player:respawn()
+    return ms_utils.player.teleport_to_spawn(player)
 end
 
 function skylith.reset_inventories(player)
-    player:get_inventory():set_list("main", {})
-    player:get_inventory():set_list("craft", {})
-    armor:remove_all(player)
-end
-
-function skylith.show_minimap(player, bool)
-    player:hud_set_flags({
-        minimap = bool,
-        minimap_radar = bool
+    ms_utils.player.clear_inventory(player, {
+        include_armor = true,
     })
 end
 
-function skylith.reset_health(player)
-    local max_hp = core.PLAYER_MAX_HP_DEFAULT or 20
-    if player:get_hp() == max_hp then
-        return
-    end
+function skylith.show_minimap(player, bool)
+    ms_utils.player.set_minimap(player, bool)
+end
 
-    player:set_hp(max_hp)
+function skylith.reset_health(player)
+    ms_utils.player.reset_health(player)
 end
 
 local function kill_player()

@@ -45,9 +45,7 @@ core.register_node("echo_stone:echo_stone", {
             respawn_point[name]= nil
         end
 
-        local spawnpoint = core.settings:get_pos("static_spawnpoint")
-        if spawnpoint then
-            clicker:set_pos(spawnpoint)
+        if ms_utils.player.teleport_to_spawn(clicker) then
             core.chat_send_player(name, core.colorize("grey", "[ Echo Stone ] ") .. S("Teleported to lobby"))
         end
     end

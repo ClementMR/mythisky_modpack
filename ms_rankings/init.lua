@@ -166,9 +166,9 @@ core.register_craftitem("ms_rankings:leaderboard", {
 core.register_alias("leaderboard", "ms_rankings:leaderboard")
 
 core.register_on_dieplayer(function(_, reason)
-    if reason.type == "punch" then
+    if reason.type == "punch" and reason.object and reason.object:is_player() then
         local puncher_name = reason.object:get_player_name()
-        if reason.object:is_player() then
+        if puncher_name then
             inc_stat(puncher_name, "kills")
         end
     end

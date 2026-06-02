@@ -47,14 +47,9 @@ core.register_globalstep(function(dtime)
             if core.get_node(player:get_pos()).name == "ms_portal:portal" then
 				if core.global_exists("ffa") and not core.get_player_privs(name).ffa_manager then
 					ffa.on_enter(player)
-					return
+				elseif PORTAL_DESTINATION then
+					player:set_pos(PORTAL_DESTINATION)
 				end
-
-				if not PORTAL_DESTINATION then
-					return
-				end
-
-				player:set_pos(PORTAL_DESTINATION)
             end
         end
     end

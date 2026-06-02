@@ -4,17 +4,17 @@ local S = core.get_translator(core.get_current_modname())
 
 core.register_craftitem("ms_items:snowball", {
     description = S("Snowball"),
-	inventory_image = "default_snowball.png",
+    inventory_image = "default_snowball.png",
     stack_max = 16,
     on_use = function(_, player, pointed_thing)
         if cooldown:get(player) then
             return
-        else
-            cooldown:set(player, 0.5)
         end
 
-        if pointed_thing.type ~= "node" then
-            local throw_pos_offset = vector.add({x=0, y=1.5, z=0}, player:get_pos())
+        cooldown:set(player, 0.5)
+
+        if not pointed_thing or pointed_thing.type ~= "node" then
+            local throw_pos_offset = vector.add({x = 0, y = 1.5, z = 0}, player:get_pos())
             core.add_entity(throw_pos_offset, "ms_items:thrown_snowball", player:get_player_name())
             core.sound_play("ms_items_snowball_thrown", {max_hear_distance = 10, pos = throw_pos_offset})
 
@@ -44,27 +44,26 @@ core.register_entity("ms_items:thrown_snowball", {
     },
     player_name = "",
     on_step = function(self, _, moveresult)
-        if moveresult.collisions then
-            for _, collision in ipairs(moveresult.collisions) do
-                if collision.type == "object" then
-                    local obj = collision.object
-                    -- Vérifie si l'objet est bien un joueur
-                    if obj and obj:is_player() then
-                        obj:punch(core.get_player_by_name(self.player_name), 1.0, {
-                            full_punch_interval = 1.0,
-                            damage_groups = {fleshy = self.initial_properties.damage}
-                        }, nil)
-                        self.object:remove()
-                        return
-                    end
+        local collisions = moveresult.collisions or {}
+
+        for _, collision in ipairs(collisions) do
+            if collision.type == "object" then
+                local obj = collision.object
+                if obj and obj:is_player() then
+                    obj:punch(core.get_player_by_name(self.player_name), 1.0, {
+                        full_punch_interval = 1.0,
+                        damage_groups = {fleshy = self.initial_properties.damage}
+                    }, nil)
+                    self.object:remove()
+                    return
                 end
             end
         end
 
-        local collided_with_node = moveresult.collisions[1] and moveresult.collisions[1].type == "node"
-        if collided_with_node then
-            for i=1, #callbacks do
-                local node = core.get_node(moveresult.collisions[1].node_pos)
+        local node_collision = collisions[1]
+        if node_collision and node_collision.type == "node" then
+            for i = 1, #callbacks do
+                local node = core.get_node(node_collision.node_pos)
                 callbacks[i](node)
             end
             self.object:remove()
@@ -84,14 +83,21 @@ core.register_entity("ms_items:thrown_snowball", {
 
         self.object:set_rotation({x = -pitch, y = yaw, z = 0})
         self.object:set_velocity({
-            x=(dir.x * self.initial_properties.speed),
-            y=(dir.y * self.initial_properties.speed),
-            z=(dir.z * self.initial_properties.speed),
+            x = dir.x * self.initial_properties.speed,
+            y = dir.y * self.initial_properties.speed,
+            z = dir.z * self.initial_properties.speed,
         })
 
-        self.object:set_acceleration({x=dir.x*-8, y=-self.initial_properties.gravity, z=dir.z*-8})
+        self.object:set_acceleration({
+            x = dir.x * -8,
+            y = -self.initial_properties.gravity,
+            z = dir.z * -8
+        })
 
-        -- Supprime l'entité après un certain temps
-        core.after(self.initial_properties.lifetime, function() self.object:remove() end)
+        core.after(self.initial_properties.lifetime, function()
+            if self.object then
+                self.object:remove()
+            end
+        end)
     end,
 })

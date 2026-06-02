@@ -101,8 +101,10 @@ mobs:register_mob("ms_entities:forgotten_player", {
         end
     end,
     on_death = function(_, killer)
-        core.chat_send_player(killer:get_player_name(),
-        "<".. core.colorize("green", "Forgotten Player") .."> " .. S("Good game!"))
+        if killer and killer:is_player() then
+            core.chat_send_player(killer:get_player_name(),
+            "<".. core.colorize("green", "Forgotten Player") .."> " .. S("Good game!"))
+        end
     end
 })
 

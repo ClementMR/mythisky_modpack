@@ -2,13 +2,14 @@ unused_args = false
 
 globals = {
     "minigame", "ms_settings",
+    "ms_utils",
     "hud_api", "sfinv",
     "discord", "armor",
     "armor_monoid", "pova",
     "player_monoids", "player_api",
     "default", "skylith",
     "skywars", "areas",
-    "in_arena", "PlayerName",
+    "in_arena",
     "ms_items", "mobs",
     "edit_skin", "ffa",
     "visible_wielditem",

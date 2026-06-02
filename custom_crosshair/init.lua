@@ -61,7 +61,5 @@ core.register_globalstep(function()
 end)
 
 core.register_on_leaveplayer(function(player)
-    if ms_settings.get(player, "custom_crosshair") then
-        current_crosshair[player:get_player_name()] = nil
-    end
+    current_crosshair[player:get_player_name()] = nil
 end)

@@ -1,12 +1,8 @@
-do
-	function PlayerName(player)
-		local type = type(player)
-
-		if type == "string" then
-			return player
-		elseif type == "userdata" and player:is_player() then
-			return player:get_player_name()
-		end
+local function get_player_name(player)
+	if type(player) == "string" then
+		return player
+	elseif type(player) == "userdata" and player:is_player() then
+		return player:get_player_name()
 	end
 end
 
@@ -14,7 +10,10 @@ function ms_items.cooldown()
 	return {
 		players = {},
 		set = function(self, player, time)
-			local pname = PlayerName(player)
+			local pname = get_player_name(player)
+			if not pname then
+				return
+			end
 
 			-- S'il y a un cooldown en cours, on l'annule
 			if self.players[pname] then
@@ -29,7 +28,8 @@ function ms_items.cooldown()
 			self.players[pname] = core.after(time, function() self.players[pname] = nil end)
 		end,
 		get = function(self, player)
-			return self.players[PlayerName(player)]
+			local pname = get_player_name(player)
+			return pname and self.players[pname]
 		end
 	}
 end

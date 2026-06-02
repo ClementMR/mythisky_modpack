@@ -16,7 +16,9 @@ core.register_on_joinplayer(function(player)
     skylith.reset_inventories(player)
     skylith.show_minimap(player, false)
     skylith.reset_health(player)
-    minigame.reset_spectator(player)
+    if core.global_exists("minigame") and minigame.reset_spectator then
+        minigame.reset_spectator(player)
+    end
 end)
 
 local timer

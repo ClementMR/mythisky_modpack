@@ -86,7 +86,7 @@ function hud_api.get(player, hud_type)
     local id = "hud_api:" .. name .. "_" .. hud_type
 
     for k, _ in pairs(hud_api.huds) do
-        if k:find(id) then
+        if k:find(id, 1, true) then
             return true
         end
     end
@@ -100,7 +100,7 @@ function hud_api.remove(player, hud_type)
     local id = "hud_api:" .. name .. "_" .. hud_type
 
     for k, _ in pairs(hud_api.huds) do
-        if k:find(id) then
+        if k:find(id, 1, true) then
             player:hud_remove(hud_api.huds[k].id)
             hud_api.huds[k] = nil
         end
@@ -110,7 +110,7 @@ end
 function hud_api.remove_all(player)
     local name = player:get_player_name():lower()
     for k, _ in pairs(hud_api.huds) do
-        if k:find("hud_api:" .. name) then
+        if k:find("hud_api:" .. name, 1, true) then
             player:hud_remove(hud_api.huds[k].id)
             hud_api.huds[k] = nil
         end
@@ -120,18 +120,8 @@ end
 core.register_on_leaveplayer(function(player)
     local name = player:get_player_name():lower()
     for k, _ in pairs(hud_api.huds) do
-        if k:find("hud_api:" .. name) then
+        if k:find("hud_api:" .. name, 1, true) then
             hud_api.huds[k] = nil
         end
     end
 end)
-
---[[
-core.register_chatcommand("get_huds", {
-    privs = {server = true},
-    description = "Get all HUDs",
-    func = function(_, _)
-        return true, dump(hud_api.huds)
-    end
-})
-]]
