@@ -23,6 +23,7 @@ minigame.register(skywars.game_name, {
         },
         loot = {
             fields = {
+                chance = "number",
                 min = "number",
                 max = "number",
                 item = "string"

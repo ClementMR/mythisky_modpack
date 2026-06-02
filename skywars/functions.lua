@@ -125,10 +125,16 @@ local function refill_chest(pos, map)
     local loot = map.loot
     if loot then
         for _, l in pairs(loot) do
-            if math.random() < l.chance then
+            local item = l.item
+            local chance = l.chance or 1
+
+            if item and item ~= "" and math.random() < chance then
                 local slot = math.random(1, 32)
-                local count = math.random(1, l.max or 99)
-                local stack = ItemStack(l.item .. " " .. count)
+                local min = l.min or 1
+                local max = l.max or min
+                if max < min then max = min end
+                local count = math.random(min, max)
+                local stack = ItemStack(item .. " " .. count)
 
                 inv:set_stack("main", slot, stack)
             end
