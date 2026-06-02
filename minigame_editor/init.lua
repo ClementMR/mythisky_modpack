@@ -1,476 +1,777 @@
-local minigame_editor = {}
+local sessions = {}
+
+local FORM_HOME = "minigame_editor:home"
+local FORM_MAPS = "minigame_editor:maps"
+local FORM_EDIT = "minigame_editor:edit"
+local FORM_CUSTOM = "minigame_editor:custom"
+local FORM_DELETE = "minigame_editor:delete"
+
+local PREFIX = core.colorize("#C82909", "[Map Editor]")
+local AXES = {"x", "y", "z"}
+local RUNTIME_FIELDS = {
+    players = true,
+    spectators = true,
+    loading = true,
+    running = true,
+    timer = true,
+    loading_timer = true,
+}
 
 core.register_privilege("map_editor", {
     description = "Allows the player to edit a map",
     give_to_singleplayer = true,
 })
 
-local editor_prefix = core.colorize("#C82909", "[Map Editor] ")
-
-local function is_vector() end
-
-local function show_homepage(player)
-    local games = table.concat(minigame.get_all_games(), ",")
-    local form = "size[10,7]" ..
-        "box[2.5,0;5,1;#C82909]" ..
-        "hypertext[4,0.1;4.4,1;map_info;<big>Map Editor</big>]" ..
-        "label[1.5,2;Select a game :]" ..
-        "dropdown[1.5,2.5;7;game_selected;" .. games .. ";]" ..
-        "button[0.7,4;4,1.5;new_map_btn;Create a map]" ..
-        "button[5,4;4,1.5;all_maps_btn;View existing maps]"
-
-    core.show_formspec(player:get_player_name(), "minigame_editor:homepage", form)
+local function message(player_name, text)
+    core.chat_send_player(player_name, PREFIX .. " " .. text)
 end
 
-local function show_existing_maps(player)
-    local player_name = player:get_player_name()
-    local editor = minigame_editor[player_name]
-    local game_name = editor.game_name
-    if not game_name then return end
-
-    local form = "size[10,7]" ..
-        "box[2.5,0;5,1;#C82909]" ..
-        "hypertext[3.5,0.1;4.4,1;map_info;<big>Current game " .. game_name .. " - Choose a map</big>]" ..
-        "label[1.5,2;Select a map :]" ..
-        "dropdown[1.5,2.5;7;map_selected;" .. table.concat(minigame.get_maps(game_name), ",") .. ";]" ..
-        "button[2.8,4;4,1.5;edit_map_btn;Edit Map]"
-
-    core.show_formspec(player_name, "minigame_editor:existing_maps", form)
+local function trim(value)
+    return tostring(value or ""):gsub("^%s*(.-)%s*$", "%1")
 end
 
-local function show_main(player)
-    local player_name = player:get_player_name()
-    local editor = minigame_editor[player_name]
-    local game_name = editor.game_name
-    if not game_name then return end
+local function escape(value)
+    return core.formspec_escape(tostring(value or ""))
+end
 
-    local map_name = editor.old_map_name
-    local spawns = editor.data["spawns"] or nil
-    local activated = editor.data["activated"] == true
-    local spawn_count = editor.spawn_count
-    local scroll_val = editor.scroll_value or 0
-    local map = minigame[game_name].maps[map_name]
-
-    local default_pos1, default_pos2 = nil, nil
-    if map and map.pos1 and map.pos2 then
-        default_pos1, default_pos2 = map.pos1, map.pos2
+local function deep_copy(value)
+    if type(value) ~= "table" then
+        return value
     end
 
-    local pos1 = editor.data["pos1"] or default_pos1
-    local pos2 = editor.data["pos2"] or default_pos2
+    local copy = {}
+    for key, inner in pairs(value) do
+        copy[key] = deep_copy(inner)
+    end
 
-    map_name = editor.new_map_name or map_name or ""
-
-    local form = "size[10,12]" ..
-        "box[2.5,0;5,1;#C82909]" ..
-        "hypertext[3.5,0.1;4.4,1;map_info;<big>Editing a map for " .. game_name .. "</big>]" ..
-        "label[3.2,1.2;Current editor : " .. player_name .. "]" ..
-
-        "scrollbaroptions[max=550]" ..
-        "scrollbar[9.6,2;0.4,10;vertical;map_edition;" .. scroll_val .. "]" ..
-        "scroll_container[0,2.5;12,11.5;map_edition;vertical]" ..
-
-        "checkbox[0,0;map_activated;Enable Map;" .. tostring(activated) .. "]" ..
-        "field_close_on_enter[map_name;false]" ..
-        "field[2.5,1;4,1;map_name;Map Name :;" .. core.formspec_escape(map_name) .. "]" ..
-        "button[6.1,0.68;1,1;save_map_name_btn;Save]"
-
-        local x = 0.5
-        for i = 1, 2 do
-            local pos = (i == 1) and pos1 or pos2
-
-            form = form .. "label[" .. (x-0.3) .. ",1.8;Map pos" .. i .. ":]"
-
-            for _, axe in ipairs({"x", "y", "z"}) do
-                form = form .. "field_close_on_enter[pos" .. i .. "_" .. axe .. ";false]"
-
-                if pos and pos[axe] then
-                    form = form .. "field[" .. x .. ",3;1,1;pos" .. i .. "_" .. axe .. ";" .. axe .. ";" ..
-                    core.formspec_escape(pos[axe]) .. "]"
-                else
-                    form = form .. "field[" .. x .. ",3;1,1;pos" .. i .. "_" .. axe .. ";" .. axe .. ";]"
-                end
-
-                x = x + 1
-            end
-
-            form = form .. "button[" .. (x-0.4) .. ",2.68;1,1;save_pos" .. i .. "_btn;Save]"
-
-            x = x + 2
-        end
-
-        form = form .. "label[0.2,4;Spawns :]" ..
-        "scrollbaroptions[min=1;max=20;smallstep=1]" ..
-        "label[0.2,4.8;Count : " .. spawn_count .. "]" ..
-        "scrollbar[0.2,5.2;7,0.5;horizontal;spawn_count;" .. spawn_count .. "]"
-
-        local y = 7.5
-        for i = 1, spawn_count do
-            x = 2.5
-            form = form .. "label[2.2," .. (y-1.2) ..";Spawn " .. i .. " :]"
-            for _, axe in pairs({"x", "y", "z"}) do
-                form = form .. "field_close_on_enter[spawn_" .. i .. "_" .. axe .. ";false]"
-                if spawns and spawns[i] then
-                    form = form .. "field[" .. x .. "," .. y .. ";1,1;spawn_" .. i .. "_" .. axe .. ";" .. axe .. ";" ..
-                    spawns[i][axe] .. "]"
-                else
-                    form = form .. "field[" .. x .. "," .. y .. ";1,1;spawn_" .. i .. "_" .. axe .. ";" .. axe .. ";]"
-                end
-
-                x = x + 1
-            end
-
-            form = form .. "button[" .. (x-0.4) .. "," .. (y-0.32) .. ";1,1;save_spawn" .. i .. "_btn;Save]"
-            form = form .. "button[" .. (x+0.5) .. "," .. (y-0.32) .. ";1,1;remove_spawn" .. i .. "_btn;X]"
-
-            y = y + 2
-        end
-
-        form = form .. "button_exit[1.8," .. (y-0.5) .. ";6,1;custom_properties_btn;Change custom properties]" ..
-        "button_exit[1.5," .. (y+0.5) .. ";3,1;save_map_btn;Save Map]" ..
-        "button_exit[5," .. (y+0.5) .. ";3,1;cancel_btn;Cancel Edit]"
-
-        form = form .. "scroll_container_end[]"
-
-    core.show_formspec(player_name, "minigame_editor:main", form)
+    return copy
 end
 
---[[
-local function show_custom_properties(player)
-    local player_name = player:get_player_name()
-    local editor = minigame_editor[player_name]
-    local game_name = editor.game_name
-    if not game_name then return end
+local function sorted_names(values)
+    local names = ms_utils.copy_sequence(values)
+    table.sort(names)
+    return names
+end
 
-    local custom_props = minigame[game_name].def.custom_properties or {}
-    local data = editor.data.custom_properties or {}
+local function get_index(values, selected)
+    local index = table.indexof(values, selected)
+    if not index or index == -1 then
+        return 1
+    end
 
-    local form = "size[10,12]" ..
-        "box[2.5,0;5,1;#C82909]" ..
-        "hypertext[3.5,0.1;4.4,1;map_info;<big>Editing a map for " .. game_name .. "</big>]" ..
-        "label[3.2,1.2;Current editor : " .. player_name .. "]"
+    return index
+end
 
-    local y = 3
+local function dropdown_values(values)
+    local escaped = {}
+    for _, value in ipairs(values) do
+        table.insert(escaped, escape(value))
+    end
 
-    if custom_props then
-        for prop_name, def in pairs(custom_props) do
-            form = form .. "label[0.2," .. (y) .. ";" .. prop_name .. ":]"
+    return table.concat(escaped, ",")
+end
 
-            if type(def.fields) == "table" then
-                local x = 0.3
-                for field_name, ftype in pairs(def.fields) do
-                    local name = prop_name .. "_" .. field_name
-                    local current_val = data and data[prop_name] and data[prop_name][field_name] or ""
+local function get_session(player_name)
+    return sessions[player_name]
+end
 
-                    if ftype == "number" or ftype == "string" then
-                        form = form .. "field[" .. x .. "," .. (y+1.2) ..
-                            ";2,1;" .. name .. ";" .. field_name .. ";" ..
-                            core.formspec_escape(tostring(current_val)) .. "]"
+local function get_game(session)
+    return session and minigame.get_game(session.game_name)
+end
 
-                        x = x + 2.5
+local function current_pos(player)
+    return vector.round(player:get_pos())
+end
 
-                    elseif ftype == "pos" then
-                        local pos = current_val or {x="", y="", z=""}
-                        for _, axe in ipairs({"x","y","z"}) do
-                            local fname = name .. "_" .. axe
-                            form = form .. "field[" .. x .. "," .. (y+1.2) .. ";1,1;" .. fname .. ";" .. axe .. ";" ..
-                            core.formspec_escape(tostring(pos[axe] or "")) .. "]"
+local function copy_map_data(map)
+    local data = {}
 
-                            x = x + 1
-                        end
-
-                    elseif type(ftype) == "table" then -- enum
-                        local values = table.concat(ftype, ",")
-                        local idx = 1
-                        if current_val then
-                            for i,v in ipairs(ftype) do
-                                if v == current_val then idx = i break end
-                            end
-                        end
-
-                        form = form .. "dropdown[" .. x .. "," .. (y+0.95) ..
-                        ";3;" .. name .. ";" .. values .. ";" .. idx .. "]"
-
-                        x = x + 3.5
-                    end
-                end
-            end
-            y = y + 2
+    for key, value in pairs(map or {}) do
+        if not RUNTIME_FIELDS[key] then
+            data[key] = deep_copy(value)
         end
     end
 
-    form = form .. "button_exit[1.5," .. y .. ";3,1;save_custom_btn;Save]" ..
-    "button_exit[5," .. y .. ";3,1;cancel_btn;Cancel]"
+    if data.activated == nil then
+        data.activated = true
+    end
 
-    core.show_formspec(player_name, "minigame_editor:custom_properties", form)
+    data.spawns = data.spawns or {}
+
+    return data
 end
-]]
+
+local function start_session(player_name, game_name, map_name)
+    local map = map_name and minigame.get_map(game_name, map_name) or nil
+
+    sessions[player_name] = {
+        game_name = game_name,
+        old_map_name = map_name,
+        map_name = map_name or "",
+        data = copy_map_data(map),
+        selected_custom = nil,
+    }
+
+    if not map_name then
+        sessions[player_name].data.activated = true
+    end
+
+    return sessions[player_name]
+end
+
+local function parse_number(value)
+    if value == nil or value == "" then
+        return nil
+    end
+
+    return tonumber(value)
+end
+
+local function parse_pos_fields(fields, prefix)
+    local pos = {}
+
+    for _, axis in ipairs(AXES) do
+        local value = parse_number(fields[prefix .. "_" .. axis])
+        if not value then
+            return nil
+        end
+
+        pos[axis] = value
+    end
+
+    return pos
+end
+
+local function pos_field(prefix, axis, pos, x, y)
+    local value = pos and pos[axis] or ""
+    return ("field[%.1f,%.1f;1.15,0.8;%s_%s;%s;%s]"):format(
+        x, y, prefix, axis, axis, escape(value))
+end
+
+local function add_pos_fields(form, prefix, pos, x, y)
+    for _, axis in ipairs(AXES) do
+        form[#form + 1] = pos_field(prefix, axis, pos, x, y)
+        x = x + 1.2
+    end
+end
+
+local function sync_main_fields(session, fields)
+    if fields.map_name ~= nil then
+        session.map_name = trim(fields.map_name)
+    end
+
+    if fields.map_activated ~= nil then
+        session.data.activated = fields.map_activated == "true"
+    end
+
+    local pos1 = parse_pos_fields(fields, "pos1")
+    if pos1 then
+        session.data.pos1 = pos1
+    end
+
+    local pos2 = parse_pos_fields(fields, "pos2")
+    if pos2 then
+        session.data.pos2 = pos2
+    end
+
+    session.data.spawns = session.data.spawns or {}
+
+    for field_name, _ in pairs(fields) do
+        local index = field_name:match("^spawn_(%d+)_x$")
+        if index then
+            index = tonumber(index)
+            local spawn = parse_pos_fields(fields, "spawn_" .. index)
+            if spawn then
+                session.data.spawns[index] = spawn
+            end
+        end
+    end
+end
+
+local function validate_session(session)
+    if not session then
+        return nil, "No editor session is active."
+    end
+
+    if session.map_name == "" then
+        return nil, "Map name is required."
+    end
+
+    if not ms_utils.is_vector(session.data.pos1) or not ms_utils.is_vector(session.data.pos2) then
+        return nil, "Map pos1 and pos2 must be defined."
+    end
+
+    if not session.data.spawns or #session.data.spawns == 0 then
+        return nil, "At least one spawn is required."
+    end
+
+    for index, spawn in ipairs(session.data.spawns) do
+        if not ms_utils.is_vector(spawn) then
+            return nil, ("Spawn %d is invalid."):format(index)
+        end
+    end
+
+    local existing = minigame.get_map(session.game_name, session.map_name)
+    if existing and session.map_name ~= session.old_map_name then
+        return nil, "Another map already uses this name."
+    end
+
+    local data = deep_copy(session.data)
+    data.activated = data.activated ~= false
+    data.spawns = ms_utils.copy_sequence(data.spawns)
+
+    if vector.sort then
+        data.pos1, data.pos2 = vector.sort(data.pos1, data.pos2)
+    end
+
+    return data
+end
+
+local function save_session(player_name)
+    local session = get_session(player_name)
+    local data, err = validate_session(session)
+    if not data then
+        message(player_name, err)
+        return false
+    end
+
+    local game = minigame.get_game(session.game_name)
+    if not game then
+        message(player_name, "Game no longer exists.")
+        sessions[player_name] = nil
+        return false
+    end
+
+    if session.old_map_name and session.old_map_name ~= session.map_name then
+        game.maps[session.old_map_name] = nil
+    end
+
+    game.maps[session.map_name] = data
+    minigame.save_maps()
+
+    if game.settings.map_regen then
+        minigame.create_schematic(session.game_name, session.map_name)
+    end
+
+    session.old_map_name = session.map_name
+    session.data = copy_map_data(data)
+
+    message(player_name, ("Map %s saved."):format(session.map_name))
+    return true
+end
+
+local function show_home(player)
+    local player_name = player:get_player_name()
+    local games = sorted_names(minigame.get_all_games())
+
+    if #games == 0 then
+        core.show_formspec(player_name, FORM_HOME,
+            "size[8,4]label[0.5,0.7;No minigame is registered.]button_exit[2.5,2.5;3,1;close;Close]")
+        return
+    end
+
+    local form = {
+        "size[10,6]",
+        "box[0,0;10,1;#C82909]",
+        "hypertext[4,0.2;4.4,1;;<big>Map Editor</big>]" ..
+        "label[0.9,1.55;Game :]",
+        ("dropdown[2.1,1.45;7,0.8;game_name;%s;1]"):format(dropdown_values(games)),
+        "button[1,3.1;2.5,1;new_map;New map]",
+        "button[3.75,3.1;2.5,1;edit_maps;Edit maps]",
+        "button[6.5,3.1;2.5,1;reload_maps;Reload maps]",
+        "button_exit[3.75,4.65;2.5,0.8;close;Close]",
+    }
+
+    core.show_formspec(player_name, FORM_HOME, table.concat(form))
+end
+
+local function show_maps(player)
+    local player_name = player:get_player_name()
+    local session = get_session(player_name)
+    if not session then
+        show_home(player)
+        return
+    end
+
+    local maps = sorted_names(minigame.get_maps(session.game_name))
+    local form = {
+        "size[10,6]",
+        "box[0,0;10,1;#C82909]",
+        ("hypertext[4,0.2;4.4,1;;<big>Maps for %s</big>]"):format(escape(session.game_name)),
+        "button[0.5,5;2,0.8;back;Back]",
+    }
+
+    if #maps == 0 then
+        form[#form + 1] = "label[0.8,2;No map exists for this game.]"
+        form[#form + 1] = "button[3.7,3.2;2.8,1;new_map;Create first map]"
+    else
+        form[#form + 1] = "label[0.8,1.7;Map]"
+        form[#form + 1] = ("dropdown[2.1,1.45;7,0.8;map_name;%s;1]"):format(dropdown_values(maps))
+        form[#form + 1] = "button[1.2,3.2;2.3,1;edit_map;Edit]"
+        form[#form + 1] = "button[3.85,3.2;2.3,1;duplicate_map;Duplicate]"
+        form[#form + 1] = "button[6.5,3.2;2.3,1;delete_map;Delete]"
+    end
+
+    core.show_formspec(player_name, FORM_MAPS, table.concat(form))
+end
+
+local function show_edit(player)
+    local player_name = player:get_player_name()
+    local session = get_session(player_name)
+    if not session then
+        show_home(player)
+        return
+    end
+
+    local data = session.data
+    local spawns = data.spawns or {}
+    local form = {
+        "size[14,11]",
+        "box[0,0;14,1;#C82909]",
+        ("hypertext[0.35,0.2;4.4,1;;<big>Editing %s</big>]"):format(escape(session.game_name)),
+        "label[0.5,1.35;Map name]",
+        ("field[2.1,1.5;4.8,0.8;map_name;;%s]"):format(escape(session.map_name)),
+        ("checkbox[7.3,1.2;map_activated;Enabled;%s]"):format(tostring(data.activated ~= false)),
+        "button[10.4,1.05;1.4,0.8;save;Save]",
+        "button[12,1.05;1.4,0.8;close;Done]",
+        "label[0.5,2.35;Bounds]",
+        "label[1.2,3.05;pos1]",
+        "label[1.2,4.05;pos2]",
+    }
+
+    add_pos_fields(form, "pos1", data.pos1, 2.1, 3.25)
+    add_pos_fields(form, "pos2", data.pos2, 2.1, 4.25)
+
+    form[#form + 1] = "button[5.9,3.1;2,0.8;capture_pos1;Use current]"
+    form[#form + 1] = "button[5.9,4.1;2,0.8;capture_pos2;Use current]"
+    form[#form + 1] = "button[8.1,3.1;1.6,0.8;teleport_pos1;Go]"
+    form[#form + 1] = "button[8.1,4.1;1.6,0.8;teleport_pos2;Go]"
+    form[#form + 1] = ("label[10.5,2.55;Spawns: %d]"):format(#spawns)
+    form[#form + 1] = "button[10.5,3;3,0.8;add_spawn_here;Add current spawn]"
+    form[#form + 1] = "button[10.5,4;3,0.8;custom_props;Custom properties]"
+    form[#form + 1] = "scrollbaroptions[min=0;max=1000]"
+    form[#form + 1] = "scrollbar[13.45,5.1;0.35,5.1;vertical;spawn_scroll;0]"
+    form[#form + 1] = "scroll_container[0,6.5;14.5,5.7;spawn_scroll;vertical]"
+
+    local y = 0.5
+    for index, spawn in ipairs(spawns) do
+        form[#form + 1] = ("hypertext[2.4,%.2f;2,1;;<style color=yellow><big>#%d</big></style>]"):format(y, index)
+        add_pos_fields(form, "spawn_" .. index, spawn, 3.15, y)
+        form[#form + 1] = ("button[6.95,%.2f;1.65,0.8;spawn_use_%d;Current]"):format(y - 0.3, index)
+        form[#form + 1] = ("button[8.75,%.2f;1.15,0.8;spawn_tp_%d;Go]"):format(y - 0.3, index)
+        form[#form + 1] = ("button[10.05,%.2f;1.25,0.8;spawn_remove_%d;Remove]"):format(y - 0.3, index)
+        y = y + 1.05
+    end
+
+    if #spawns == 0 then
+        form[#form + 1] = "label[4,0.5;No spawn yet. Use Add current spawn.]"
+    end
+
+    form[#form + 1] = "scroll_container_end[]"
+    form[#form + 1] = "button[0.5,10.35;2,0.8;back_home;Home]"
+    form[#form + 1] = "button[2.7,10.35;2.2,0.8;back_maps;Map list]"
+    form[#form + 1] = "button[10.7,10.35;3,0.8;cancel;Cancel session]"
+
+    core.show_formspec(player_name, FORM_EDIT, table.concat(form))
+end
+
+local function custom_props_for(session)
+    local game = get_game(session)
+    return game and game.custom_properties or {}
+end
+
+local function custom_prop_names(session)
+    local names = {}
+
+    for name, _ in pairs(custom_props_for(session)) do
+        table.insert(names, name)
+    end
+
+    table.sort(names)
+    return names
+end
+
+local function default_custom_value(field_type, player)
+    if field_type == "pos" then
+        return current_pos(player)
+    elseif field_type == "number" then
+        return 1
+    elseif type(field_type) == "table" then
+        return tonumber(field_type[1]) or field_type[1] or ""
+    end
+
+    return ""
+end
+
+local function custom_field_name(index, field_name, axis)
+    if axis then
+        return ("custom_%d_%s_%s"):format(index, field_name, axis)
+    end
+
+    return ("custom_%d_%s"):format(index, field_name)
+end
+
+local function get_custom_field_names(fields)
+    local names = {}
+
+    for field_name, _ in pairs(fields or {}) do
+        table.insert(names, field_name)
+    end
+
+    table.sort(names)
+    return names
+end
+
+local function sync_custom_fields(session, fields)
+    local prop_name = session.selected_custom
+    if not prop_name then
+        return
+    end
+
+    local prop_def = custom_props_for(session)[prop_name]
+    if not prop_def or type(prop_def.fields) ~= "table" then
+        return
+    end
+
+    local records = session.data[prop_name] or {}
+
+    for index, record in ipairs(records) do
+        for _, field_name in ipairs(get_custom_field_names(prop_def.fields)) do
+            local field_type = prop_def.fields[field_name]
+
+            if field_type == "pos" then
+                local prefix = custom_field_name(index, field_name)
+                local pos = parse_pos_fields(fields, prefix)
+                if pos then
+                    record[field_name] = pos
+                end
+            elseif field_type == "number" then
+                local number = parse_number(fields[custom_field_name(index, field_name)])
+                if number ~= nil then
+                    record[field_name] = number
+                end
+            elseif type(field_type) == "table" then
+                local value = fields[custom_field_name(index, field_name)]
+                if value ~= nil then
+                    record[field_name] = tonumber(value) or value
+                end
+            else
+                local value = fields[custom_field_name(index, field_name)]
+                if value ~= nil then
+                    record[field_name] = value
+                end
+            end
+        end
+    end
+end
+
+local function add_custom_record(session, player)
+    local prop_name = session.selected_custom
+    local prop_def = custom_props_for(session)[prop_name]
+    if not prop_def or type(prop_def.fields) ~= "table" then
+        return
+    end
+
+    session.data[prop_name] = session.data[prop_name] or {}
+    local record = {}
+
+    for _, field_name in ipairs(get_custom_field_names(prop_def.fields)) do
+        local field_type = prop_def.fields[field_name]
+        record[field_name] = default_custom_value(field_type, player)
+    end
+
+    table.insert(session.data[prop_name], record)
+end
+
+local function show_custom(player)
+    local player_name = player:get_player_name()
+    local session = get_session(player_name)
+    if not session then
+        show_home(player)
+        return
+    end
+
+    local prop_names = custom_prop_names(session)
+    if #prop_names == 0 then
+        message(player_name, "This game has no custom properties.")
+        --show_edit(player)
+        return
+    end
+
+    session.selected_custom = session.selected_custom or prop_names[1]
+    local prop_name = session.selected_custom
+    local prop_def = custom_props_for(session)[prop_name]
+    local records = session.data[prop_name] or {}
+
+    local form = {
+        "size[14,11]",
+        "box[0,0;14,1;#C82909]",
+        "hypertext[0.35,0.2;4.4,1;;<big>Custom properties</big>]",
+        "label[0.5,1.7;Property]",
+        ("dropdown[2.1,1.5;4.3,0.8;prop_name;%s;%d]"):format(
+            dropdown_values(prop_names), get_index(prop_names, prop_name)),
+        "button[6.65,1.4;1.7,0.8;select_prop;Open]",
+        "button[8.55,1.4;2.1,0.8;add_record;Add entry]",
+        "button[10.85,1.4;1.6,0.8;save;Save]",
+        "button[12.55,1.4;1.1,0.8;back;Back]",
+        ("label[0.25,10.5;%s entries: %d]"):format(escape(prop_name), #records),
+        "scrollbaroptions[min=0;max=1500]",
+        "scrollbar[13.45,3.5;0.35,7.2;vertical;custom_scroll;0]",
+        "scroll_container[0,4.5;13.4,7.3;custom_scroll;vertical]",
+    }
+
+    local y = 0.2
+    local fields = prop_def and prop_def.fields or {}
+
+    for index, record in ipairs(records) do
+        --form[#form + 1] = ("box[0.35,%.2f;12.4,1.6;#333333]"):format(y - 0.05)
+        form[#form + 1] = ("hypertext[0.55,%.2f;2,1;;<style color=yellow><big>#%d</big></style>]"):format(
+            y + 0.45, index)
+
+        local x = 1.2
+        for _, field_name in ipairs(get_custom_field_names(fields)) do
+            local field_type = fields[field_name]
+            local value = record[field_name]
+
+            if field_type == "pos" then
+                --form[#form + 1] = ("label[%.2f,%.2f;%s]"):format(x, y, escape(field_name))
+                add_pos_fields(form, custom_field_name(index, field_name), value, x, y + 0.7)
+                x = x + 3.8
+            elseif type(field_type) == "table" then
+                form[#form + 1] = ("label[%.2f,%.2f;%s]"):format(x, y, escape(field_name))
+                form[#form + 1] = ("dropdown[%.2f,%.2f;1.5,0.8;%s;%s;%d]"):format(
+                    x, y + 0.35, custom_field_name(index, field_name),
+                    dropdown_values(field_type), get_index(field_type, tostring(value)))
+                x = x + 2
+            else
+                form[#form + 1] = ("field[%.2f,%.2f;2.1,0.8;%s;%s;%s]"):format(
+                    x, y + 0.35, custom_field_name(index, field_name),
+                    escape(field_name), escape(value))
+                x = x + 2.2
+            end
+        end
+
+        form[#form + 1] = ("button[11.2,%.2f;1.4,0.8;custom_remove_%d;Remove]"):format(y + 0.35, index)
+        y = y + 1.9
+    end
+
+    if #records == 0 then
+        form[#form + 1] = "label[0.5,0.6;No entry yet. Use Add entry.]"
+    end
+
+    form[#form + 1] = "scroll_container_end[]"
+
+    core.show_formspec(player_name, FORM_CUSTOM, table.concat(form))
+end
+
+local function delete_map(player_name, game_name, map_name)
+    local state = minigame.get_map_state(game_name, map_name)
+    if state == "running" or state == "loading" then
+        message(player_name, "You cannot delete a running or loading map.")
+        return false
+    end
+
+    local game = minigame.get_game(game_name)
+    if not game or not game.maps[map_name] then
+        message(player_name, "Map no longer exists.")
+        return false
+    end
+
+    game.maps[map_name] = nil
+    minigame.save_maps()
+    message(player_name, ("Map %s deleted."):format(map_name))
+    return true
+end
 
 core.register_chatcommand("map_editor", {
     description = "Show the map editor",
     params = "c",
-    privs = {map_editor=true},
+    privs = {map_editor = true},
     func = function(player_name, param)
         local player = core.get_player_by_name(player_name)
         if not player then return end
 
         if param == "c" then
-            if minigame_editor[player_name] then
-                minigame_editor[player_name] = nil
-                return true, editor_prefix .. "Map edit cancelled!"
-            else
-                return false, editor_prefix .. "You are not editing a map!"
+            if sessions[player_name] then
+                sessions[player_name] = nil
+                return true, PREFIX .. " " .. "Map edit cancelled."
             end
+
+            return false, PREFIX .. " " .. "You are not editing a map."
         end
 
-        if minigame_editor[player_name] then
-            show_main(player)
+        if sessions[player_name] then
+            show_edit(player)
             return true
         end
 
-        if #minigame.get_all_games() ~= 0 then
-            show_homepage(player)
-        else
-            return false, editor_prefix .. "Unable to find a game!"
-        end
+        show_home(player)
+        return true
     end
 })
 
 core.register_on_player_receive_fields(function(player, formname, fields)
     local player_name = player:get_player_name()
-    if formname == "minigame_editor:homepage" then
-        if fields.all_maps_btn then
-            local game_name = fields.game_selected
 
-            if #minigame.get_maps(game_name) == 0 then
-                core.close_formspec(player_name, "minigame_editor:homepage")
-                core.chat_send_player(player_name, editor_prefix ..
-                "This game doesn't contain any maps. Choose the other option if you want to create a new one.")
-                return false
-            end
+    if fields.quit then
+        return
+    end
 
-            minigame_editor[player_name] = {
-                game_name = game_name,
-                data = {}
-            }
-
-            show_existing_maps(player)
-
-        elseif fields.new_map_btn then
-            local game_name = fields.game_selected
-
-            minigame_editor[player_name] = {
-                game_name   = game_name,
-                spawn_count = 1,
-                data        = {activated   = true}
-            }
-
-            show_main(player)
-        end
-    elseif formname == "minigame_editor:existing_maps" then
-        if fields.edit_map_btn then
-            local game_name = minigame_editor[player_name].game_name
-            local map_name = fields.map_selected
-            local map  = minigame[game_name].maps[map_name]
-            local spawns = minigame.get_spawns(map) or {}
-
-            minigame_editor[player_name].old_map_name       = map_name
-            minigame_editor[player_name].spawn_count        = #spawns
-            minigame_editor[player_name].data["spawns"]     = spawns
-            minigame_editor[player_name].data["activated"]  = false
-
-            minigame[game_name].maps[map_name].activated = false
-
-            show_main(player)
-
-        elseif fields.quit then
-            minigame_editor[player_name] = nil
-        end
-    elseif formname == "minigame_editor:main" then
-        --print(dump(fields))
-
-        if not fields.quit then
-            -- ===== KEEP AN EYE ON THE SCROLLBAR =====
-            minigame_editor[player_name].scroll_value = core.explode_scrollbar_event(fields.map_edition).value
+    if formname == FORM_HOME then
+        local game_name = fields.game_name
+        if not game_name or game_name == "" then
+            return
         end
 
-        local scroll_event = core.explode_scrollbar_event(fields.spawn_count)
-        for i = 1, scroll_event.value do
-            local name = "spawn_" .. i
-            local save_btn = "save_spawn" .. i .. "_btn"
-
-            if (fields[save_btn] or fields.key_enter_field == name .. "_x"
-            or fields.key_enter_field == name .. "_y" or fields.key_enter_field == name .. "_z")
-            and fields[name .. "_x"] ~= "" and fields[name .. "_y"] ~= "" and fields[name .. "_z"] ~= "" then
-                local spawn = core.string_to_pos(fields[name .. "_x"] .. "," ..
-                fields[name .. "_y"] .. "," .. fields[name .. "_z"])
-
-                minigame_editor[player_name].data["spawns"] = minigame_editor[player_name].data["spawns"] or {}
-
-                if is_vector(spawn) then
-                    minigame_editor[player_name].data["spawns"][i] = spawn
-
-                    core.chat_send_player(player_name,
-                        ("%sSpawn (%d) saved : %s"):format(editor_prefix, i, core.pos_to_string(spawn)))
-                else
-                    core.chat_send_player(player_name, editor_prefix .. "Invalid position!")
-                end
-
-            elseif fields["remove_spawn" .. i .. "_btn"] then
-                local spawn = minigame_editor[player_name].data["spawns"]
-                if spawn and spawn[i] then
-                    minigame_editor[player_name].data["spawns"][i] = nil
-                    show_main(player)
-                end
-            end
-        end
-
-        if fields.map_activated then
-            minigame_editor[player_name].data["activated"] = fields.map_activated == "true"
-
-        elseif fields.save_map_name_btn and fields.map_name ~= ""
-        or fields.key_enter_field == "map_name" and fields.map_name ~= "" then
-            -- ===== SAVE MAP NAME =====
-            minigame_editor[player_name].new_map_name = fields.map_name
-
-            core.chat_send_player(player_name,
-            ("%sMap name saved : %s"):format(editor_prefix, minigame_editor[player_name].new_map_name))
-
-        elseif fields.save_pos1_btn and fields.pos1_x ~= "" and fields.pos1_y ~= "" and fields.pos1_z ~= ""
-        or fields.key_enter_field == "pos1_x" and fields.pos1_x ~= "" and fields.pos1_y ~= "" and fields.pos1_z ~= ""
-        or fields.key_enter_field == "pos1_y" and fields.pos1_x ~= "" and fields.pos1_y ~= "" and fields.pos1_z ~= ""
-        or fields.key_enter_field == "pos1_z" and fields.pos1_x ~= "" and fields.pos1_y ~= "" and fields.pos1_z ~= ""
-        then
-            -- ===== SAVE MAP POS1 =====
-            local pos1 = core.string_to_pos(fields.pos1_x .. "," .. fields.pos1_y .. "," .. fields.pos1_z)
-            if is_vector(pos1) then
-                minigame_editor[player_name].data["pos1"] = pos1
-
-                core.chat_send_player(player_name,
-                ("%sMap pos1 saved : %s"):format(editor_prefix, core.pos_to_string(pos1)))
-            else
-                core.chat_send_player(player_name, editor_prefix .. "Invalid position!")
-            end
-
-        elseif fields.save_pos2_btn and fields.pos2_x ~= "" and fields.pos2_y ~= "" and fields.pos2_z ~= ""
-        or fields.key_enter_field == "pos2_x" and fields.pos2_x ~= "" and fields.pos2_y ~= "" and fields.pos2_z ~= ""
-        or fields.key_enter_field == "pos2_y" and fields.pos2_x ~= "" and fields.pos2_y ~= "" and fields.pos2_z ~= ""
-        or fields.key_enter_field == "pos2_z" and fields.pos2_x ~= "" and fields.pos2_y ~= "" and fields.pos2_z ~= ""
-        then
-            -- ===== SAVE  MAP POS2 =====
-            local pos2 = core.string_to_pos(fields.pos2_x .. "," .. fields.pos2_y .. "," .. fields.pos2_z)
-            if is_vector(pos2) then
-                minigame_editor[player_name].data["pos2"] = pos2
-
-                core.chat_send_player(player_name,
-                ("%sMap pos2 saved : %s"):format(editor_prefix, core.pos_to_string(pos2)))
-            else
-                core.chat_send_player(player_name, editor_prefix .. "Invalid position!")
-            end
-
-        elseif scroll_event.type == "CHG" then
-
-            minigame_editor[player_name].spawn_count = scroll_event.value
-            show_main(player)
-
-        elseif fields.custom_properties_btn then
-
-            core.chat_send_player(player_name, editor_prefix .. "Work in progress ...")
-            --show_custom_properties(player)
-
-        elseif fields.save_map_btn then
-            -- ===== SAVE MAP =====
-            local editor = minigame_editor[player_name]
-            local game_name = editor.game_name
-            local old_map_name = editor.old_map_name
-            local new_map_name = editor.new_map_name or old_map_name
-
-            local current_map_name = new_map_name
-            local map  = minigame[game_name].maps[old_map_name]
-
-            local default_pos1, default_pos2, default_spawns = nil
-            if map then
-                default_pos1, default_pos2, default_spawns = map.pos1, map.pos2, minigame.get_spawns(map)
-            end
-
-            local pos1 = editor.data["pos1"] or default_pos1
-            local pos2 = editor.data["pos2"] or default_pos2
-            local spawns = editor.data["spawns"] or default_spawns
-            local spawn_count = editor.spawn_count
-
-            if current_map_name == nil then
-                core.chat_send_player(player_name,
-                editor_prefix .. "The name of the map must be defined!")
-                return false
-
-            elseif not pos1 or not pos2 then
-                core.chat_send_player(player_name,
-                editor_prefix .. "The positions (1) and (2) of the map must both be defined")
-                return false
-            end
-
-            if spawns then
-                for i = 1, spawn_count do
-                    if not spawns[i] then
-                        core.chat_send_player(player_name,
-                        ("%sSpawn (%d) is not defined!"):format(editor_prefix, i))
-
-                        return false
-                    end
-                end
-            else
-                core.chat_send_player(player_name, editor_prefix .. "The spawns must be defined!")
-                return false
-            end
-
-            -- ===== NEW DATA =====
+        if fields.new_map then
+            start_session(player_name, game_name)
+            show_edit(player)
+        elseif fields.edit_maps then
+            start_session(player_name, game_name)
+            show_maps(player)
+        elseif fields.reload_maps then
             minigame.reload_maps()
+            message(player_name, "Maps reloaded.")
+            show_home(player)
+        end
 
-            local map_data = {}
+    elseif formname == FORM_MAPS then
+        local session = get_session(player_name)
+        if not session then
+            show_home(player)
+            return
+        end
 
-            -- Check if the map already exists and gets data
-            if old_map_name ~= nil then
-                map_data = table.copy(minigame[game_name].maps[old_map_name])
+        if fields.back then
+            sessions[player_name] = nil
+            show_home(player)
+        elseif fields.new_map then
+            start_session(player_name, session.game_name)
+            show_edit(player)
+        elseif fields.edit_map and fields.map_name then
+            start_session(player_name, session.game_name, fields.map_name)
+            show_edit(player)
+        elseif fields.duplicate_map and fields.map_name then
+            local new_session = start_session(player_name, session.game_name, fields.map_name)
+            new_session.old_map_name = nil
+            new_session.map_name = fields.map_name .. " Copy"
+            show_edit(player)
+        elseif fields.delete_map and fields.map_name then
+            sessions[player_name].pending_delete = fields.map_name
+            local form = ("size[8,4]label[0.5,1;Delete map %s?]"):format(escape(fields.map_name)) ..
+                "button[1.2,2.4;2,0.8;confirm;Delete]" ..
+                "button[4.6,2.4;2,0.8;cancel;Cancel]"
 
-                -- Check if the name has changed
-                if new_map_name ~= old_map_name then
-                    minigame[game_name].maps[old_map_name] = nil
+            core.show_formspec(player_name, FORM_DELETE, form)
+        end
+
+    elseif formname == FORM_DELETE then
+        local session = get_session(player_name)
+        if not session then
+            show_home(player)
+            return
+        end
+
+        if fields.confirm and session.pending_delete then
+            delete_map(player_name, session.game_name, session.pending_delete)
+            session.pending_delete = nil
+        end
+
+        show_maps(player)
+
+    elseif formname == FORM_EDIT then
+        local session = get_session(player_name)
+        if not session then
+            show_home(player)
+            return
+        end
+
+        sync_main_fields(session, fields)
+
+        if fields.capture_pos1 then
+            session.data.pos1 = current_pos(player)
+        elseif fields.capture_pos2 then
+            session.data.pos2 = current_pos(player)
+        elseif fields.teleport_pos1 and ms_utils.is_vector(session.data.pos1) then
+            player:set_pos(session.data.pos1)
+        elseif fields.teleport_pos2 and ms_utils.is_vector(session.data.pos2) then
+            player:set_pos(session.data.pos2)
+        elseif fields.add_spawn_here then
+            session.data.spawns = session.data.spawns or {}
+            table.insert(session.data.spawns, current_pos(player))
+        elseif fields.custom_props then
+            show_custom(player)
+            return
+        elseif fields.save then
+            save_session(player_name)
+        elseif fields.close then
+            if save_session(player_name) then
+                sessions[player_name] = nil
+                show_home(player)
+            else
+                show_edit(player)
+            end
+            return
+        elseif fields.back_home then
+            show_home(player)
+            return
+        elseif fields.back_maps then
+            show_maps(player)
+            return
+        elseif fields.cancel then
+            sessions[player_name] = nil
+            message(player_name, "Map edit cancelled.")
+            show_home(player)
+            return
+        else
+            for index, spawn in ipairs(session.data.spawns or {}) do
+                if fields["spawn_use_" .. index] then
+                    session.data.spawns[index] = current_pos(player)
+                    break
+                elseif fields["spawn_tp_" .. index] and ms_utils.is_vector(spawn) then
+                    player:set_pos(spawn)
+                    break
+                elseif fields["spawn_remove_" .. index] then
+                    table.remove(session.data.spawns, index)
+                    break
                 end
             end
-
-            for k, v in pairs(editor.data) do
-                map_data[k] = v
-            end
-
-            minigame[game_name].maps[current_map_name] = map_data
-
-            minigame.save_maps()
-            -- ===== END OF NEW DATA =====
-
-            if minigame[game_name].settings.map_regen == true then
-                minigame.create_schematic(game_name, current_map_name)
-            end
-
-            minigame_editor[player_name] = nil
-
-        elseif fields.cancel_btn then
-            -- ===== MAP EDIT CANCELLED =====
-            minigame_editor[player_name] = nil
-
-            core.chat_send_player(player_name, editor_prefix .. "Map edit cancelled!")
         end
+
+        show_edit(player)
+
+    elseif formname == FORM_CUSTOM then
+        local session = get_session(player_name)
+        if not session then
+            show_home(player)
+            return
+        end
+
+        sync_custom_fields(session, fields)
+
+        if fields.prop_name and (fields.select_prop or fields.prop_name ~= session.selected_custom) then
+            session.selected_custom = fields.prop_name
+        elseif fields.add_record then
+            add_custom_record(session, player)
+        elseif fields.save then
+            save_session(player_name)
+        elseif fields.back then
+            show_edit(player)
+            return
+        else
+            local records = session.selected_custom and session.data[session.selected_custom] or {}
+            for index, _ in ipairs(records or {}) do
+                if fields["custom_remove_" .. index] then
+                    table.remove(records, index)
+                    break
+                end
+            end
+        end
+
+        show_custom(player)
     end
 end)
 
-function is_vector(v)
-    return type(v) == "table"
-        and type(v.x) == "number"
-        and type(v.y) == "number"
-        and type(v.z) == "number"
-end
-
 core.register_on_leaveplayer(function(player)
-    if minigame_editor[player:get_player_name()] then
-        minigame_editor[player:get_player_name()] = nil
-    end
+    sessions[player:get_player_name()] = nil
 end)
