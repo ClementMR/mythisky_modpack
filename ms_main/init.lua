@@ -1,7 +1,7 @@
-skylith = {}
+ms_main = {}
 
-skylith.DEATH_LAYER    = ms_utils.number_or(core.settings:get("death_layer"), -100)
-skylith.TIPS           = ms_utils.number_or(core.settings:get("tips_timer"), 600)
+ms_main.DEATH_LAYER    = ms_utils.number_or(core.settings:get("death_layer"), -100)
+ms_main.TIPS           = ms_utils.number_or(core.settings:get("tips_timer"), 600)
 
 local modpath = core.get_modpath(core.get_current_modname())
 

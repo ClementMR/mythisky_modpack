@@ -49,7 +49,7 @@ core.register_node(":mythisky:springboard", {
                     local velocity = {x = dir_vector.x * 25, y = 15, z = dir_vector.z * 25}
                     obj:add_velocity(velocity)
 
-                    core.sound_play("mythisky_springboard", {
+                    core.sound_play("ms_main_springboard", {
                         pos = pos,
                         gain = 1.0,
                         max_hear_distance = 10

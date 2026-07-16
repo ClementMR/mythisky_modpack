@@ -1,12 +1,12 @@
-# Skylith Modpack
+# Mythisky Modpack
 
-Skylith Modpack is a Luanti/Minetest modpack built for the Skylith server.
+Mythisky Modpack is a Luanti/Minetest modpack built for the Mythisky server.
 It provides the server core, minigame tools, arena systems, player settings,
 shared utilities, and Skywars.
 
-Official server: ~~`sw.minetest.land:30002`~~
+Official server: `sw.minetest.land:30001`
 
-![Skylith screenshot](screenshot.png)
+![Mythisky screenshot](screenshot.png)
 
 ## What You Get
 
@@ -119,6 +119,6 @@ More technical details are available in:
 
 ## Notes
 
-- Built for the Skylith server and Luanti 5.15.
+- Built for the Mythisky server and Luanti 5.15.
 - Some mods are forks or server-specific versions.
 - Keep shared logic in `ms_utils` or `minigame_api` when possible, so game mods stay small and easier to maintain.

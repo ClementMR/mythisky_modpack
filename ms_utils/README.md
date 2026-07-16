@@ -1,6 +1,6 @@
 # MS Utils
 
-Shared helpers for Skylith mods.
+Shared helpers for Mythisky mods.
 
 Base helpers:
 

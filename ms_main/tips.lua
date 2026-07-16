@@ -11,7 +11,7 @@ local tips = {
     S("Use @1 to see who's in FFA.", "/ffa_whois")
 }
 
-local timer = skylith.TIPS
+local timer = ms_main.TIPS
 
 local function show_tips()
     if timer == 0 then
@@ -20,7 +20,7 @@ local function show_tips()
             core.chat_send_player(player:get_player_name(), core.colorize("#808080", S("[Tips] @1", msg)))
         end
 
-        timer = skylith.TIPS
+        timer = ms_main.TIPS
     end
 
     core.after(1, show_tips)

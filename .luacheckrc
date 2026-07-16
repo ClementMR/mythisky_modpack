@@ -7,7 +7,7 @@ globals = {
     "discord", "armor",
     "armor_monoid", "pova",
     "player_monoids", "player_api",
-    "default", "skylith",
+    "default", "mythisky",
     "skywars", "areas",
     "in_arena",
     "ms_items", "mobs",

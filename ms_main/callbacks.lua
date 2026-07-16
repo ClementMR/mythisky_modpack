@@ -12,10 +12,11 @@ core.register_on_joinplayer(function(player)
         return
     end
 
-    skylith.try_tp_to_spawn(player)
-    skylith.reset_inventories(player)
-    skylith.show_minimap(player, false)
-    skylith.reset_health(player)
+    ms_main.try_tp_to_spawn(player)
+    ms_main.reset_inventories(player)
+    ms_main.show_minimap(player, false)
+    ms_utils.player.reset_health(player)
+
     if core.global_exists("minigame") and minigame.reset_spectator then
         minigame.reset_spectator(player)
     end
